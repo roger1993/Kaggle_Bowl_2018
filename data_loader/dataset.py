@@ -39,8 +39,12 @@ class NucleiDataset(base.Dataset):
 	            name = image_names[i]
 	            )
 
+	"""
+	We need 3 classes, boundary class, foreground class and backgroudn class
+	"""
 	def add_boundray(self, root_dir, mode, split_ratio=0.9):
-		self.add_class("boundary", 1, "")
+		#self.add_class("boundary", 1, "")
+		pass
 	  
 
 	def load_image(self, image_id):
@@ -94,7 +98,7 @@ class NucleiDataset(base.Dataset):
 if __name__ == "__main__":
 	ds = NucleiDataset()
 	#ds.add_nuclei('data/stage1_train/','train')
-	ds.add_nuclei('../stage1_train/','train')
+	ds.add_nuclei('../external_data/','train')
 	ds.prepare()
 	print(ds.image_info[0])
 
@@ -104,7 +108,7 @@ if __name__ == "__main__":
 	
 
 	mask, _ = ds.load_mask(0)
-	#print(len(_))
+	print(len(_))
 	print(mask.shape)
 
 	means = []
