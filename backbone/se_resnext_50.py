@@ -23,6 +23,7 @@ class BatchNorm(KL.BatchNormalization):
     """Batch Normalization class. Subclasses the Keras BN class and
     hardcodes training=False so the BN layer doesn't update
     during training.
+
     Batch normalization has a negative effect on training if batches are small
     so we disable it here.
     """
@@ -30,12 +31,32 @@ class BatchNorm(KL.BatchNormalization):
     def call(self, inputs, training=None):
         return super(self.__class__, self).call(inputs, training=False)
 
-def identity_block(input_tensor, kernel_size, filters, stage, block):
+def _group_block(input_tensor, filters, cardinality, strides):
+    group_list = []
+    for c in range(cardinality):
+        x = KL.Lambda(lambda z: z[:, :, :, c * grouped_channels:(c + 1) * grouped_channels])(input_tensor)
+
+        x = KL.Conv2D(filters, (3, 3), padding='same', use_bias=False, strides=(strides, strides),
+                   kernel_initializer='he_normal', kernel_regularizer=l2(weight_decay))(x)
+
+        group_list.append(x)
+
+    group_merge = KL.Concatenate(group_list, axis=3)
+    x = BatchNorm(axis=channel_axis)(group_merge)
+    x = KL.Activation('relu', name=relu_name_base + '_x1')(x)
+
+    return x
+
+def identity_block(input_tensor, kernel_size, filters, stage, block, cardinality=32):
     filters1, filters2, filters3 = filters
+    grouped_filters = int(filters2 / cardinality)
+
     if K.image_data_format() == 'channels_last':
         bn_axis = 3
     else:
         bn_axis = 1
+
+    group_list = []
         
     block_name = str(stage) + "_" + str(block)
     conv_name_base = "conv" + block_name
@@ -45,9 +66,19 @@ def identity_block(input_tensor, kernel_size, filters, stage, block):
     x = BatchNorm(axis=bn_axis, name=conv_name_base + '_x1_bn')(x)
     x = KL.Activation('relu', name=relu_name_base + '_x1')(x)
 
-    x = KL.Conv2D(filters2, kernel_size, padding='same', use_bias=False, name=conv_name_base + '_x2')(x)
-    x = BatchNorm(axis=bn_axis, name=conv_name_base + '_x2_bn')(x)
+    # x = KL.Conv2D(filters2, kernel_size, padding='same', use_bias=False, name=conv_name_base + '_x2')(x)
+    # x = BatchNorm(axis=bn_axis, name=conv_name_base + '_x2_bn')(x)
+    # x = KL.Activation('relu', name=relu_name_base + '_x2')(x)
+
+    for c in range(cardinality):
+        x = KL.Lambda(lambda z: z[:, :, :, c * grouped_filters:(c + 1) * grouped_filters])(input_tensor)
+        x = KL.Conv2D(filters, kernel_size, padding='same', use_bias=False, name=conv_name_base + '_x2'+ "_c")(x)
+        group_list.append(x)
+
+    group_merge = KL.Concatenate(group_list, axis=3)
+    x = BatchNorm(axis=channel_axis, name=conv_name_base + '_x2_bn')(group_merge)
     x = KL.Activation('relu', name=relu_name_base + '_x2')(x)
+
 
     x = KL.Conv2D(filters3, (1, 1), use_bias=False, name=conv_name_base + '_x3')(x)
     x = BatchNorm(axis=bn_axis, name=conv_name_base + '_x3_bn')(x)
@@ -58,17 +89,21 @@ def identity_block(input_tensor, kernel_size, filters, stage, block):
     se = KL.Reshape([1, 1, filters3])(se)
     x = KL.Multiply(name='scale' + block_name)([x, se])
 
-    x = KL.Add()([x, input_tensor])
+    x = KL.Add(name='block_' + block_name)([x, input_tensor])
     x = KL.Activation('relu', name=relu_name_base)(x)
     return x
 
-def conv_block(input_tensor, kernel_size, filters, stage, block, strides=(2, 2)):
+def conv_block(input_tensor, kernel_size, filters, stage, block, strides=(2, 2), cardinality=32):
     filters1, filters2, filters3 = filters
+    grouped_filters = int(filters2 / cardinality)
+
     if K.image_data_format() == 'channels_last':
         bn_axis = 3
     else:
         bn_axis = 1
-    
+
+    group_list = []
+        
     block_name = str(stage) + "_" + str(block)
     conv_name_base = "conv" + block_name
     relu_name_base = "relu" + block_name
@@ -77,10 +112,19 @@ def conv_block(input_tensor, kernel_size, filters, stage, block, strides=(2, 2))
     x = BatchNorm(axis=bn_axis, name=conv_name_base + '_x1_bn')(x)
     x = KL.Activation('relu', name=relu_name_base + '_x1')(x)
 
-    x = KL.Conv2D(filters2, kernel_size, strides=strides, padding='same', use_bias=False, name=conv_name_base + '_x2')(x)
-    x = BatchNorm(axis=bn_axis, name=conv_name_base + '_x2_bn')(x)
-    x = KL.Activation('relu', name=relu_name_base + '_x2')(x)
+    # x = KL.Conv2D(filters2, kernel_size, strides=strides, padding='same', use_bias=False, name=conv_name_base + '_x2')(x)
+    # x = BatchNorm(axis=bn_axis, name=conv_name_base + '_x2_bn')(x)
+    # x = KL.Activation('relu', name=relu_name_base + '_x2')(x)
 
+    for c in range(cardinality):
+        x = KL.Lambda(lambda z: z[:, :, :, c * grouped_filters:(c + 1) * grouped_filters])(input_tensor)
+        x = KL.Conv2D(filters, kernel_size, strides=strides, padding='same', use_bias=False, name=conv_name_base + '_x2'+ "_c")(x)
+        group_list.append(x)
+
+    group_merge = KL.Concatenate(group_list, axis=3)
+    x = BatchNorm(axis=channel_axis, name=conv_name_base + '_x2_bn')(group_merge)
+    x = KL.Activation('relu', name=relu_name_base + '_x2')(x)
+    
     x = KL.Conv2D(filters3, (1, 1), use_bias=False, name=conv_name_base + '_x3')(x)
     x = BatchNorm(axis=bn_axis, name=conv_name_base + '_x3_bn')(x)
     
@@ -93,7 +137,7 @@ def conv_block(input_tensor, kernel_size, filters, stage, block, strides=(2, 2))
     shortcut = KL.Conv2D(filters3, (1, 1), strides=strides, use_bias=False, name=conv_name_base + '_prj')(input_tensor)
     shortcut = BatchNorm(axis=bn_axis, name=conv_name_base + '_prj_bn')(shortcut)
 
-    x = KL.Add()([x, shortcut])
+    x = KL.Add(name='block_' + block_name)([x, shortcut])
     x = KL.Activation('relu', name=relu_name_base)(x)
     return x
 
