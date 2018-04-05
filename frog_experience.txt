@@ -1,0 +1,23 @@
+please compare your loss with the log files in the google drive. A good loss at the end should be:
+
+rate = 0.001 (using SGD)
+
+total = 0.393 (variable, becuase of rcnn,mask sampling of samples)
+
+rpn = 0.01 0.01 (you should this number)
+
+rcnn = 0.25 0.01 (rcnn reg loss should be 0.01, rcnn cls loss should be 0.0.25)
+
+mask = 0.11 (mask loss is about 0.12 to 0.11)
+
+With this , you should get LB = 0.42 on gray images only for resnet50-fpn there are some easy mask post processing you can do. try to draw the mask one by one, one at a time. you will see some single pixel noise, try to clean them out.
+
+try to train longer iterations. the mask prediction needs long iteration to get to pixel accuracy (i train 29K iterations (that is about 300 epoches!) which takes 24hr). Don't use epoch, use iterations to count.
+
+there are 12 color images.
+
+for the 8 (purple on yellow), convert to gray. these 8 images give LB score of bout 0.03.
+
+the remaining 4 images are H&E stain. train this with external labelled images (you can find this at the kernel thread). The LB score should be about 0.010 to 0.015.
+
+remove scale augmentation at the last training iterations with small learning rate of 0.001
