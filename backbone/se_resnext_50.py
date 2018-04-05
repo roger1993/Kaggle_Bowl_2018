@@ -60,7 +60,7 @@ def identity_block(input_tensor, kernel_size, filters, stage, block, cardinality
         group_list.append(x)
 
     group_merge = KL.Concatenate(group_list, axis=3)
-    x = BatchNorm(axis=channel_axis, name=conv_name_base + '_x2_bn')(group_merge)
+    x = BatchNorm(axis=bn_axis, name=conv_name_base + '_x2_bn')(group_merge)
     x = KL.Activation('relu', name=relu_name_base + '_x2')(x)
 
 
@@ -106,7 +106,7 @@ def conv_block(input_tensor, kernel_size, filters, stage, block, strides=(2, 2),
         group_list.append(x)
 
     group_merge = KL.Concatenate(group_list, axis=3)
-    x = BatchNorm(axis=channel_axis, name=conv_name_base + '_x2_bn')(group_merge)
+    x = BatchNorm(axis=bn_axis, name=conv_name_base + '_x2_bn')(group_merge)
     x = KL.Activation('relu', name=relu_name_base + '_x2')(x)
     
     x = KL.Conv2D(filters3, (1, 1), use_bias=False, name=conv_name_base + '_x3')(x)
