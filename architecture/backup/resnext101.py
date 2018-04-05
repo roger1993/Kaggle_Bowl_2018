@@ -1,10 +1,35 @@
+import os
+import sys
+import glob
+import random
+import math
+import datetime
+import itertools
+import json
+import re
+import logging
+from collections import OrderedDict
+import numpy as np
+import scipy.misc
+import tensorflow as tf
+import keras
+import keras.backend as K
+import keras.layers as KL
+import keras.initializers as KI
+import keras.engine as KE
+import keras.models as KM
 
-from keras.layers import Conv2D
-from keras.layers import Activation
-from keras.layers import Add
-from keras.layers import BatchNormalization
-from keras.layers import ZeroPadding2D
-from keras.layers import MaxPooling2D
+class BatchNorm(KL.BatchNormalization):
+    """Batch Normalization class. Subclasses the Keras BN class and
+    hardcodes training=False so the BN layer doesn't update
+    during training.
+
+    Batch normalization has a negative effect on training if batches are small
+    so we disable it here.
+    """
+
+    def call(self, inputs, training=None):
+        return super(self.__class__, self).call(inputs, training=False)
 
 def identity_block(input_tensor, kernel_size, filters, stage, block, use_bias=True):
     """
@@ -23,19 +48,19 @@ def identity_block(input_tensor, kernel_size, filters, stage, block, use_bias=Tr
     conv_name_base = 'res' + str(stage) + block + '_branch'
     bn_name_base = 'bn' + str(stage) + block + '_branch'
 
-    x = Conv2D(filter1, (1, 1), name=conv_name_base + '2a', use_bias=use_bias)(input_tensor)
+    x = KL.Conv2D(filter1, (1, 1), name=conv_name_base + '2a', use_bias=use_bias)(input_tensor)
     x = BatchNorm(axis=3, name=bn_name_base + '2a')(x)
-    x = Activation('relu')(x)
+    x = KL.Activation('relu')(x)
 
-    x = Conv2D(filter2, (kernel_size, kernel_size), padding='same', name=conv_name_base + '2b', use_bias=use_bias)(x)
+    x = KL.Conv2D(filter2, (kernel_size, kernel_size), padding='same', name=conv_name_base + '2b', use_bias=use_bias)(x)
     x = BatchNorm(axis=3, name=bn_name_base + '2b')(x)
-    x = Activation('relu')(x)
+    x = KL.Activation('relu')(x)
 
-    x = Conv2D(filter3, (1, 1), name=conv_name_base + '2c', use_bias=use_bias)(x)
+    x = KL.Conv2D(filter3, (1, 1), name=conv_name_base + '2c', use_bias=use_bias)(x)
     x = BatchNorm(axis=3, name=bn_name_base + '2c')(x)
 
-    x = Add()([x, input_tensor])
-    x = Activation('relu', name='res' + str(stage) + block + '_out')(x)
+    x = KL.Add()([x, input_tensor])
+    x = KL.Activation('relu', name='res' + str(stage) + block + '_out')(x)
 
     return x
 
@@ -56,23 +81,23 @@ def conv_block(input_tensor, kernel_size, filters, stage, block, strides=(2, 2),
     conv_name_base = 'res' + str(stage) + block + '_branch'
     bn_name_base = 'bn' + str(stage) + block + '_branch'
 
-    x = Conv2D(filter1, (1, 1), strides=strides, name=conv_name_base + '2a', use_bias=use_bias)(input_tensor)
+    x = KL.Conv2D(filter1, (1, 1), strides=strides, name=conv_name_base + '2a', use_bias=use_bias)(input_tensor)
     x = BatchNorm(axis=3, name=bn_name_base + '2a')(x)
-    x = Activation('relu')(x)
+    x = KL.Activation('relu')(x)
 
-    x = Conv2D(filter2, (kernel_size, kernel_size), padding='same', name=conv_name_base + '2b', use_bias=use_bias)(x)
+    x = KL.Conv2D(filter2, (kernel_size, kernel_size), padding='same', name=conv_name_base + '2b', use_bias=use_bias)(x)
     x = BatchNorm(axis=3, name=bn_name_base + '2b')(x)
-    x = Activation('relu')(x)
+    x = KL.Activation('relu')(x)
 
-    x = Conv2D(filter3, (1, 1), name=conv_name_base +
+    x = KL.Conv2D(filter3, (1, 1), name=conv_name_base +
                                            '2c', use_bias=use_bias)(x)
     x = BatchNorm(axis=3, name=bn_name_base + '2c')(x)
 
-    shortcut = Conv2D(filter3, (1, 1), strides=strides, name=conv_name_base + '1', use_bias=use_bias)(input_tensor)
-    shortcut = BatchNorm(axis=3, name=bn_name_base + '1')(shortcut)
+    shortcut = KL.Conv2D(filter3, (1, 1), strides=strides, name=conv_name_base + '1', use_bias=use_bias)(input_tensor)
+    shortcut = KL.BatchNorm(axis=3, name=bn_name_base + '1')(shortcut)
 
-    x = Add()([x, shortcut])
-    x = Activation('relu', name='res' + str(stage) + block + '_out')(x)
+    x = KL.Add()([x, shortcut])
+    x = KL.Activation('relu', name='res' + str(stage) + block + '_out')(x)
 
     return x
 
@@ -86,11 +111,11 @@ def build_resnext_graph(input_image, stage5=False):
     """
 
     # Stage 1
-    x = ZeroPadding2D((3, 3))(input_image)
-    x = Conv2D(64, (7, 7), strides=(2, 2), name='conv1', use_bias=True)(x)
+    x = KL.ZeroPadding2D((3, 3))(input_image)
+    x = KL.Conv2D(64, (7, 7), strides=(2, 2), name='conv1', use_bias=True)(x)
     x = BatchNorm(axis=3, name='bn_conv1')(x)
-    x = Activation('relu')(x)
-    C1 = x = MaxPooling2D((2, 2), strides=(2, 2), padding="same")(x)
+    x = KL.Activation('relu')(x)
+    C1 = x = KL.MaxPooling2D((2, 2), strides=(2, 2), padding="same")(x)
 
     # Stage 2
     x = conv_block(x, 3, [128, 128, 256], stage=2, block='a', strides=(1, 1))
@@ -119,15 +144,3 @@ def build_resnext_graph(input_image, stage5=False):
         C5 = None
 
     return [C1, C2, C3, C4, C5]
-
-
-class BatchNorm(KL.BatchNormalization):
-    """Batch Normalization class. Subclasses the Keras BN class and
-    hardcodes training=False so the BN layer doesn't update
-    during training.
-    Batch normalization has a negative effect on training if batches are small
-    so we disable it here.
-    """
-
-    def call(self, inputs, training=None):
-        return super(self.__class__, self).call(inputs, training=False)
