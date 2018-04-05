@@ -1,0 +1,4 @@
+1. Zooming in the data augmentation
+2. Increase Border Pixels
+3. Resize image and mask to keep all the nuclei have the same size, i.e. get average nuclei size from the data
+4. SE-Resnext-50 architecture
