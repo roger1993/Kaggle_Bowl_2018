@@ -125,7 +125,7 @@ def conv_block(input_tensor, kernel_size, filters, stage, block, strides=(2, 2),
     x = KL.Activation('relu', name=relu_name_base)(x)
     return x
 
-def build_SEResNet50_graph(input_image, stage5=False):
+def build_SEResNeXt50_graph(input_image, stage5=False):
 
     """
     Model generator
