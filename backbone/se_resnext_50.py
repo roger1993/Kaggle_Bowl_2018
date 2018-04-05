@@ -31,22 +31,6 @@ class BatchNorm(KL.BatchNormalization):
     def call(self, inputs, training=None):
         return super(self.__class__, self).call(inputs, training=False)
 
-def _group_block(input_tensor, filters, cardinality, strides):
-    group_list = []
-    for c in range(cardinality):
-        x = KL.Lambda(lambda z: z[:, :, :, c * grouped_channels:(c + 1) * grouped_channels])(input_tensor)
-
-        x = KL.Conv2D(filters, (3, 3), padding='same', use_bias=False, strides=(strides, strides),
-                   kernel_initializer='he_normal', kernel_regularizer=l2(weight_decay))(x)
-
-        group_list.append(x)
-
-    group_merge = KL.Concatenate(group_list, axis=3)
-    x = BatchNorm(axis=channel_axis)(group_merge)
-    x = KL.Activation('relu', name=relu_name_base + '_x1')(x)
-
-    return x
-
 def identity_block(input_tensor, kernel_size, filters, stage, block, cardinality=32):
     filters1, filters2, filters3 = filters
     grouped_filters = int(filters2 / cardinality)
@@ -72,7 +56,7 @@ def identity_block(input_tensor, kernel_size, filters, stage, block, cardinality
 
     for c in range(cardinality):
         x = KL.Lambda(lambda z: z[:, :, :, c * grouped_filters:(c + 1) * grouped_filters])(input_tensor)
-        x = KL.Conv2D(filters, kernel_size, padding='same', use_bias=False, name=conv_name_base + '_x2'+ "_c")(x)
+        x = KL.Conv2D(grouped_filters, kernel_size, padding='same', use_bias=False, name=conv_name_base + '_x2'+ "_c")(x)
         group_list.append(x)
 
     group_merge = KL.Concatenate(group_list, axis=3)
@@ -118,7 +102,7 @@ def conv_block(input_tensor, kernel_size, filters, stage, block, strides=(2, 2),
 
     for c in range(cardinality):
         x = KL.Lambda(lambda z: z[:, :, :, c * grouped_filters:(c + 1) * grouped_filters])(input_tensor)
-        x = KL.Conv2D(filters, kernel_size, strides=strides, padding='same', use_bias=False, name=conv_name_base + '_x2'+ "_c")(x)
+        x = KL.Conv2D(grouped_filters, kernel_size, strides=strides, padding='same', use_bias=False, name=conv_name_base + '_x2'+ "_c")(x)
         group_list.append(x)
 
     group_merge = KL.Concatenate(group_list, axis=3)
