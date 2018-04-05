@@ -29,7 +29,7 @@ class BowlConfig(Config):
 
     VALIDATION_STEPS = 84
 
-    MEAN_PIXEL = np.array([43.5, 39.6, 48.2])
+    MEAN_PIXEL = np.array([41.5, 41.5, 41.5])
 
     # Use small images for faster training. Set the limits of the small side
     # the large side, and that determines the image shape.

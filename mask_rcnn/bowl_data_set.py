@@ -7,6 +7,7 @@ from random import randint
 import transform
 import warnings
 from random import shuffle
+import cv2
 
 class BowlDataset(utils.Dataset):
     def load_bowl(self, dataset_dir, img_ids):
@@ -61,19 +62,24 @@ class BowlDataset(utils.Dataset):
         info = self.image_info[image_id]
         return info["image_id"]
 
-    def load_image(self, image_id):
+    def load_image(self, image_id, gray_scale=True):
         """Load the specified image and return a [H,W,3] Numpy array.
         """
         # Load image
-        image = skimage.io.imread(self.image_info[image_id]['path'])
-        image = image[:, :, :3]
+        if gray_scale:
+            image = cv2.imread(self.image_info[image_id]['path'], cv2.IMREAD_GRAYSCALE)
+            image = image[:, :, np.newaxis]
+            image = np.repeat(image, 3, axis=2)
+        else:
+            image = skimage.io.imread(self.image_info[image_id]['path'])
+            image = image[:, :, :3]
         return image
 
-    def augment(self, augment_dir, num_per_image, crop_width=224, crop_height=224):
+    def augment(self, augment_dir, num_per_image, max_crop_ratio=0.8):
         image_info = [info for info in self.image_info]
         for _img_id, image_info in enumerate(image_info):
             img_id = image_info['id']
-            image = self.load_image(_img_id)
+            image = self.load_image(_img_id, gray_scale=False)
             mask, _ = self.load_mask(_img_id)
             H, W = image.shape[:2]
 
@@ -87,7 +93,7 @@ class BowlDataset(utils.Dataset):
                 horizontal_flip = random.uniform(0, 1) < 0.5
                 vertical_flip = random.uniform(0, 1) < 0.5
                 rotate90 = random.uniform(0, 1) < 0.5
-                # crop = random.uniform(0, 1) < 0.5 and H > crop_height and W > crop_width
+                crop = random.uniform(0, 1) < 0.5
 
                 if horizontal_flip:
                     new_image, new_mask = transform.horizontal_flip_transform2(new_image, new_mask)
@@ -103,11 +109,13 @@ class BowlDataset(utils.Dataset):
                     new_img_id += '_rot{}'.format(angle)
 
                 # disable crop and use it later
-                # if crop:
-                #     x = randint(1, W - crop_width)
-                #     y = randint(1, H - crop_height)
-                #     new_image, new_mask = transform.crop_transform2(new_image, new_mask, x, y, crop_width, crop_height)
-                #     new_img_id += '_crop{}{}{}{}'.format(y, x, crop_height, crop_width)
+                if crop:
+                    crop_width = round(W * random.uniform(max_crop_ratio, 0.99))
+                    crop_height = round(H * random.uniform(max_crop_ratio, 0.99))
+                    x = randint(1, W - crop_width)
+                    y = randint(1, H - crop_height)
+                    new_image, new_mask = transform.crop_transform2(new_image, new_mask, x, y, crop_width, crop_height)
+                    new_img_id += '_crop{}|{}|{}|{}'.format(y, x, crop_height, crop_width)
 
                 image_dir = os.path.join(augment_dir, new_img_id)
                 path = os.path.join(image_dir, "images", "{}.png".format(new_img_id))
@@ -124,7 +132,7 @@ class BowlDataset(utils.Dataset):
                     for i in range(new_mask.shape[-1]):
                         _mask = new_mask[:, :, i]
                         _mask[_mask > 0] = 255
-                        
+
                         mask_path = os.path.join(mask_dir, "mask{}.png".format(i+1))
                         with warnings.catch_warnings():
                             warnings.simplefilter("ignore")
