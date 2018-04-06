@@ -108,8 +108,8 @@ def build_SEResNet50_graph(input_image, stage5=False):
 
     # Stage 1
     x = KL.ZeroPadding2D((3, 3))(input_image)
-    x = KL.Conv2D(64, (7, 7), strides=(2, 2), padding='same', use_bias=False, name='conv1')(img_input)
-    x = BatchNorm(axis=bn_axis, name='conv1_bn')(x)
+    x = KL.Conv2D(64, (7, 7), strides=(2, 2), use_bias=False, name='conv1')(input_image)
+    x = BatchNorm(axis=3, name='conv1_bn')(x)
     x = KL.Activation('relu', name='relu1')(x)
     C1 = x = KL.MaxPooling2D((3, 3), strides=(2, 2), name='pool1')(x)
     

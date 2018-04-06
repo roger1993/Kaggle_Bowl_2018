@@ -56,10 +56,10 @@ def identity_block(input_tensor, kernel_size, filters, stage, block, cardinality
 
     for c in range(cardinality):
         x = KL.Lambda(lambda z: z[:, :, :, c * grouped_filters:(c + 1) * grouped_filters])(input_tensor)
-        x = KL.Conv2D(grouped_filters, kernel_size, padding='same', use_bias=False, name=conv_name_base + '_x2'+ "_c")(x)
+        x = KL.Conv2D(grouped_filters, kernel_size, padding='same', use_bias=False, name=conv_name_base + '_x2'+ "_" + str(c))(x)
         group_list.append(x)
 
-    group_merge = KL.Concatenate(group_list, axis=3)
+    group_merge = KL.Concatenate(axis=3)(group_list)
     x = BatchNorm(axis=bn_axis, name=conv_name_base + '_x2_bn')(group_merge)
     x = KL.Activation('relu', name=relu_name_base + '_x2')(x)
 
@@ -102,10 +102,10 @@ def conv_block(input_tensor, kernel_size, filters, stage, block, strides=(2, 2),
 
     for c in range(cardinality):
         x = KL.Lambda(lambda z: z[:, :, :, c * grouped_filters:(c + 1) * grouped_filters])(input_tensor)
-        x = KL.Conv2D(grouped_filters, kernel_size, strides=strides, padding='same', use_bias=False, name=conv_name_base + '_x2'+ "_c")(x)
+        x = KL.Conv2D(grouped_filters, kernel_size, strides=strides, padding='same', use_bias=False, name=conv_name_base + '_x2'+ "_" + str(c))(x)
         group_list.append(x)
 
-    group_merge = KL.Concatenate(group_list, axis=3)
+    group_merge = KL.Concatenate(axis=3)(group_list)
     x = BatchNorm(axis=bn_axis, name=conv_name_base + '_x2_bn')(group_merge)
     x = KL.Activation('relu', name=relu_name_base + '_x2')(x)
     
@@ -125,7 +125,7 @@ def conv_block(input_tensor, kernel_size, filters, stage, block, strides=(2, 2),
     x = KL.Activation('relu', name=relu_name_base)(x)
     return x
 
-def build_SEResNeXt50_graph(input_image, stage5=False):
+def resnet_graph(input_image, stage5=False):
 
     """
     Model generator
@@ -135,10 +135,11 @@ def build_SEResNeXt50_graph(input_image, stage5=False):
     """
 
     # Stage 1
-    x = KL.Conv2D(64, (7, 7), strides=(2, 2), padding='same', use_bias=False, name='conv1')(img_input)
-    x = BatchNorm(axis=bn_axis, name='conv1_bn')(x)
+    x = KL.ZeroPadding2D((3, 3))(input_image)
+    x = KL.Conv2D(64, (7, 7), strides=(2, 2), use_bias=False, name='conv1')(x)
+    x = BatchNorm(axis=3, name='conv1_bn')(x)
     x = KL.Activation('relu', name='relu1')(x)
-    C1 = x = KL.MaxPooling2D((3, 3), strides=(2, 2), name='pool1')(x)
+    C1 = x = KL.MaxPooling2D((3, 3), strides=(2, 2), padding="same", name='pool1')(x)
     
     # Stage 2
     x = conv_block(x, 3, [64, 64, 256], stage=2, block=1, strides=(1, 1))
@@ -164,7 +165,7 @@ def build_SEResNeXt50_graph(input_image, stage5=False):
     if stage5:
         x = conv_block(x, 3, [512, 512, 2048], stage=5, block=1)
         x = identity_block(x, 3, [512, 512, 2048], stage=5, block=2)
-        x = identity_block(x, 3, [512, 512, 2048], stage=5, block=3)
+        C5 = x = identity_block(x, 3, [512, 512, 2048], stage=5, block=3)
     else:
         C5 = None
 
