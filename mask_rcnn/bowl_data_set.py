@@ -21,10 +21,12 @@ class BowlDataset(utils.Dataset):
         # Add images
         for img_id in img_ids:
             path = os.path.join(dataset_dir, img_id, "images", "{}.png".format(img_id))
+            gray_path = os.path.join(dataset_dir, img_id, "images", "{}_gray.png".format(img_id))
             im =skimage.io.imread(path)
             self.add_image(
                 "bowl", image_id=img_id,
                 path=os.path.join(dataset_dir, img_id, "images", "{}.png".format(img_id)),
+                gray_path=gray_path,
                 width=im.shape[1],
                 height=im.shape[0],
                 mask_dir=os.path.join(dataset_dir, img_id, "masks"))
@@ -66,12 +68,18 @@ class BowlDataset(utils.Dataset):
         """Load the specified image and return a [H,W,3] Numpy array.
         """
         # Load image
+        path = self.image_info[image_id]['path']
         if gray_scale:
-            image = cv2.imread(self.image_info[image_id]['path'], cv2.IMREAD_GRAYSCALE)
-            image = image[:, :, np.newaxis]
-            image = np.repeat(image, 3, axis=2)
+            gray_path = self.image_info[image_id]['gray_path']
+            if os.path.exists(gray_path):
+                image = skimage.io.imread(gray_path)
+            else:
+                image = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
+                image = image[:, :, np.newaxis]
+                image = np.repeat(image, 3, axis=2)
+                skimage.io.imsave(gray_path, image)
         else:
-            image = skimage.io.imread(self.image_info[image_id]['path'])
+            image = skimage.io.imread(path)
             image = image[:, :, :3]
         return image
 
